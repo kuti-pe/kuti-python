@@ -17,6 +17,7 @@ from .types import (
     CheckoutSessionCustomer,
     Money,
     PaymentIntent,
+    PaymentIntentCustomer,
     PaymentMethodType,
 )
 from .webhooks import verify_webhook_signature
@@ -25,6 +26,7 @@ __all__ = [
     "KutiClient",
     "Money",
     "CheckoutSessionCustomer",
+    "PaymentIntentCustomer",
     "CheckoutSession",
     "PaymentIntent",
     "PaymentMethodType",
@@ -40,4 +42,4 @@ __all__ = [
     "KutiSignatureVerificationError",
 ]
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"

@@ -38,6 +38,36 @@ class CheckoutSessionCustomer:
 
 
 @dataclass(frozen=True)
+class PaymentIntentCustomer:
+    """Cliente del cobro. Si viene ``id``, se ignora el resto."""
+
+    id: Optional[str] = None
+    type: Optional[Literal["INDIVIDUAL", "COMPANY"]] = None
+    given_name: Optional[str] = None
+    family_name: Optional[str] = None
+    legal_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    external_id: Optional[str] = None
+    document: Optional[Dict[str, str]] = None  # {type, number}
+
+
+@dataclass(frozen=True)
+class PaymentIntentCustomer:
+    """Cliente del cobro. Si viene ``id``, se ignora el resto."""
+
+    id: Optional[str] = None
+    type: Optional[Literal["INDIVIDUAL", "COMPANY"]] = None
+    given_name: Optional[str] = None
+    family_name: Optional[str] = None
+    legal_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    external_id: Optional[str] = None
+    document: Optional[Dict[str, str]] = None  # {type, number}
+
+
+@dataclass(frozen=True)
 class PaymentMethodQr:
     type: Optional[PaymentMethodType] = None
     payload: Optional[str] = None

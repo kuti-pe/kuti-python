@@ -248,3 +248,48 @@ def test_retries_post_with_idempotency_key() -> None:
     assert calls["n"] == 2
     headers_lower = {k.lower(): v for k, v in captured_headers.items()}
     assert headers_lower.get("idempotency-key") == "order-42"
+
+
+def test_create_payment_intent_sends_customer_and_idempotency_key() -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None):
+        captured["url"] = req.full_url
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        captured["headers"] = {k: v for k, v in req.header_items()}
+        return FakeHTTPResponse(
+            {
+                "data": {
+                    "id": "pi_created",
+                    "merchant_id": "mer_1",
+                    "customer": {"id": "cus_1"},
+                    "amount": {"amount": "50.00", "currency": "PEN"},
+                    "status": "PENDING",
+                    "checkout_url": "https://pay.kuti.pe/c/ABC",
+                    "created_at": "2026-01-01T00:00:00Z",
+                }
+            }
+        )
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        intent = KutiClient(SECRET_KEY, base_url="https://example.test/v1").payment_intents.create(
+            amount={"amount": "50.00", "currency": "PEN"},
+            payment_method_types=["INTEROPERABLE_QR", "BANK_TRANSFER"],
+            customer={
+                "type": "INDIVIDUAL",
+                "given_name": "María",
+                "family_name": "López",
+                "email": "maria@example.com",
+                "document": {"type": "DNI", "number": "45678912"},
+            },
+            description="Pedido #1042",
+            idempotency_key="order-1042",
+        )
+
+    assert intent.id == "pi_created"
+    assert intent.customer_id == "cus_1"
+    assert captured["url"].endswith("/payment-intents")
+    headers_lower = {k.lower(): v for k, v in captured["headers"].items()}
+    assert headers_lower.get("idempotency-key") == "order-1042"
+    assert captured["body"]["customer"]["given_name"] == "María"
+    assert captured["body"]["customer"]["document"] == {"type": "DNI", "number": "45678912"}

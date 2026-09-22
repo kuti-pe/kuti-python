@@ -94,6 +94,7 @@ Los `GET` y los `POST` con `idempotency_key` se reintentan automáticamente en e
 
 - `KutiClient(secret_key, base_url=None)`
 - `kuti.checkout_sessions.create(*, amount, payment_method_types, …, idempotency_key=None)`
+- `kuti.payment_intents.create(*, amount, payment_method_types, …, idempotency_key=None)`
 - `kuti.payment_intents.retrieve(id)`
 - `verify_webhook_signature(payload, signature_header, timestamp_header, secret, tolerance_seconds=300)`
 
