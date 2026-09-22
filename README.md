@@ -24,8 +24,7 @@ session = kuti.checkout_sessions.create(
     amount={"amount": "249.90", "currency": "PEN"},
     payment_method_types=["INTEROPERABLE_QR", "BANK_TRANSFER"],
     description="Zapatillas running talla 42",
-    # Cliente existente: solo el id. Para uno nuevo: name/email/phone/external_id.
-    customer={"id": "cus_01ABC"},
+    customer={"id": "cus_01ABC"},  # existente — si viene id, se ignora el resto
     # customer={"name": "María López", "email": "maria@example.com"},
     idempotency_key=f"order-{order_id}",  # evita duplicar el cobro si reintentas
 )
