@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kuti-pe"
+version = "1.0.0"
+description = "SDK oficial de KUTI para Python — crea checkout sessions, consulta pagos y verifica webhooks."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+  { name = "KUTI", email = "soporte@kuti.pe" },
+]
+keywords = ["kuti", "payments", "peru", "yape", "qr", "checkout"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://docs.kuti.pe"
+Documentation = "https://docs.kuti.pe/sdks"
+Repository = "https://github.com/kuti-pe/kuti-python"
+Issues = "https://github.com/kuti-pe/kuti-python/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "respx>=0.21"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kuti"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/kuti", "LICENSE", "README.md", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
