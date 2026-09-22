@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from ..types import (
     Money,
@@ -28,7 +28,6 @@ class PaymentIntentsResource:
         amount: Union[Money, Dict[str, str]],
         payment_method_types: List[PaymentMethodType],
         customer: Optional[Union[PaymentIntentCustomer, Dict[str, Any]]] = None,
-        customer_id: Optional[str] = None,
         receivable_id: Optional[str] = None,
         category_id: Optional[str] = None,
         requires_customer_info: Optional[bool] = None,
@@ -39,12 +38,7 @@ class PaymentIntentsResource:
         metadata: Optional[Dict[str, str]] = None,
         idempotency_key: Optional[str] = None,
     ) -> PaymentIntent:
-        """Crea un payment intent (cobro).
-
-        Devuelve QR, código de pago de servicios y ``checkout_url``.
-        El monto SIEMPRE debe resolverse en tu backend. Pasa ``idempotency_key``
-        para no duplicar el cobro al reintentar.
-        """
+        """POST /payment-intents — QR, bank code, checkout_url."""
         money = (
             amount
             if isinstance(amount, Money)
@@ -58,8 +52,6 @@ class PaymentIntentsResource:
         }
         if cust_obj is not None:
             body["customer"] = _customer_to_api(cust_obj)
-        if customer_id is not None:
-            body["customer_id"] = customer_id
         if receivable_id is not None:
             body["receivable_id"] = receivable_id
         if category_id is not None:
@@ -81,18 +73,84 @@ class PaymentIntentsResource:
         response = self._client.request("POST", "/payment-intents", body, opts)
         return _from_api(response["data"])
 
-    def retrieve(self, payment_intent_id: str) -> PaymentIntent:
-        """Consulta el estado real de un cobro.
+    def list(
+        self,
+        *,
+        status: Optional[str] = None,
+        q: Optional[str] = None,
+        customer_id: Optional[str] = None,
+        created_from: Optional[str] = None,
+        created_to: Optional[str] = None,
+        page: Optional[int] = None,
+        per_page: Optional[Union[int, str]] = None,
+    ) -> Dict[str, Any]:
+        """GET /payment-intents — returns ``{"data": [...], "pagination": {...}}``."""
+        query: Dict[str, str] = {}
+        if status is not None:
+            query["status"] = status
+        if q is not None:
+            query["q"] = q
+        if customer_id is not None:
+            query["customer_id"] = customer_id
+        if created_from is not None:
+            query["created_from"] = created_from
+        if created_to is not None:
+            query["created_to"] = created_to
+        if page is not None:
+            query["page"] = str(page)
+        if per_page is not None:
+            query["per_page"] = str(per_page)
+        path = "/payment-intents"
+        if query:
+            path = f"{path}?{urlencode(query)}"
+        response = self._client.request("GET", path)
+        rows = [_from_api(row) for row in (response.get("data") or [])]
+        p = response.get("pagination") or {}
+        return {
+            "data": rows,
+            "pagination": {
+                "page": p.get("page", 1),
+                "per_page": p.get("per_page", len(rows)),
+                "total": p.get("total", len(rows)),
+                "total_pages": p.get("total_pages", 1),
+                "has_more": p.get("has_more", False),
+            },
+        }
 
-        Es la fuente de verdad — nunca confíes solo en un callback del frontend
-        (``onSuccess`` de Checkout.js). Verifica ``status == "SUCCEEDED"`` aquí
-        antes de entregar un producto o servicio.
-        """
+    def retrieve(self, payment_intent_id: str) -> PaymentIntent:
+        """GET /payment-intents/:id"""
         response = self._client.request(
             "GET",
             f"/payment-intents/{quote(payment_intent_id, safe='')}",
         )
         return _from_api(response["data"])
+
+    def cancel(self, payment_intent_id: str) -> PaymentIntent:
+        """POST /payment-intents/:id/cancel"""
+        response = self._client.request(
+            "POST",
+            f"/payment-intents/{quote(payment_intent_id, safe='')}/cancel",
+        )
+        return _from_api(response["data"])
+
+    def send_whatsapp(
+        self,
+        payment_intent_id: str,
+        *,
+        phone: Optional[str] = None,
+        customer_name: Optional[str] = None,
+    ) -> None:
+        """POST /payment-intents/:id/send-whatsapp — 204 on success."""
+        body: Dict[str, Any] = {}
+        if phone is not None:
+            body["phone"] = phone
+        if customer_name is not None:
+            body["customer_name"] = customer_name
+        self._client.request(
+            "POST",
+            f"/payment-intents/{quote(payment_intent_id, safe='')}/send-whatsapp",
+            body,
+        )
 
 
 def _normalize_customer(

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kuti-pe"
-version = "1.0.2"
+version = "1.0.3"
 description = "SDK oficial de KUTI para Python — crea checkout sessions, consulta pagos y verifica webhooks."
 readme = "README.md"
 license = "MIT"

@@ -20,15 +20,15 @@ PaymentIntentStatus = Literal[
 
 @dataclass(frozen=True)
 class Money:
-    """Monto decimal como string. Nunca float."""
+    """Decimal string (never float). Currency: PEN only for now."""
 
     amount: str
-    currency: str
+    currency: str = "PEN"
 
 
 @dataclass(frozen=True)
 class CheckoutSessionCustomer:
-    """Id de un Customer ya existente (cus_…). Si viene, se ignora el resto."""
+    """If ``id`` is set, other fields are ignored."""
 
     id: Optional[str] = None
     external_id: Optional[str] = None
@@ -39,7 +39,7 @@ class CheckoutSessionCustomer:
 
 @dataclass(frozen=True)
 class PaymentIntentCustomer:
-    """Cliente del cobro. Si viene ``id``, se ignora el resto."""
+    """If ``id`` is set, other fields are ignored."""
 
     id: Optional[str] = None
     type: Optional[Literal["INDIVIDUAL", "COMPANY"]] = None

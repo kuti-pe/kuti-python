@@ -33,11 +33,7 @@ class CheckoutSessionsResource:
         metadata: Optional[Dict[str, str]] = None,
         idempotency_key: Optional[str] = None,
     ) -> CheckoutSession:
-        """Crea una sesión de cargo único.
-
-        El monto SIEMPRE debe resolverse en tu backend. Pasa ``idempotency_key``
-        (ej. tu id de orden) para no duplicar el cobro al reintentar.
-        """
+        """POST /checkout-sessions. Pass ``idempotency_key`` to safely retry."""
         money = (
             amount
             if isinstance(amount, Money)
