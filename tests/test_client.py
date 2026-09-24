@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import io
 import json
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from unittest.mock import patch
 from urllib.error import HTTPError
 
 import pytest
 
 from kuti import (
+    CustomerInput,
     KutiAuthenticationError,
     KutiClient,
     KutiNotFoundError,
@@ -277,8 +278,8 @@ def test_create_payment_intent_sends_customer_and_idempotency_key() -> None:
             payment_method_types=["INTEROPERABLE_QR", "BANK_TRANSFER"],
             customer={
                 "type": "INDIVIDUAL",
-                "given_name": "María",
-                "family_name": "López",
+                "first_name": "María",
+                "last_name": "López",
                 "email": "maria@example.com",
                 "document": {"type": "DNI", "number": "45678912"},
             },
@@ -291,5 +292,74 @@ def test_create_payment_intent_sends_customer_and_idempotency_key() -> None:
     assert captured["url"].endswith("/payment-intents")
     headers_lower = {k.lower(): v for k, v in captured["headers"].items()}
     assert headers_lower.get("idempotency-key") == "order-1042"
-    assert captured["body"]["customer"]["given_name"] == "María"
+    assert captured["body"]["customer"]["first_name"] == "María"
     assert captured["body"]["customer"]["document"] == {"type": "DNI", "number": "45678912"}
+
+
+def test_create_customer_with_document_and_custom_fields() -> None:
+    captured: Dict[str, Any] = {}
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        captured["url"] = req.full_url
+        captured["method"] = req.get_method()
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeHTTPResponse(
+            {
+                "data": {
+                    "id": "cus_new",
+                    "merchant_id": "mer_1",
+                    "type": "INDIVIDUAL",
+                    "first_name": "María",
+                    "document": {"type": "DNI", "number": "45678912", "country": "PE"},
+                    "custom_fields": {"grade": "quinto"},
+                    "created_at": "2026-01-01T00:00:00Z",
+                }
+            }
+        )
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        customer = KutiClient(SECRET_KEY, base_url="https://example.test/v1").customers.create(
+            CustomerInput(
+                type="INDIVIDUAL",
+                first_name="María",
+                last_name="López",
+                document={"number": "45678912"},
+                custom_fields={"grade": "5to grado"},
+            )
+        )
+
+    assert customer.id == "cus_new"
+    assert customer.custom_fields == {"grade": "quinto"}
+    assert customer.document == {"type": "DNI", "number": "45678912", "country": "PE"}
+    assert captured["url"].endswith("/customers")
+    assert captured["method"] == "POST"
+    assert captured["body"]["document"] == {"number": "45678912"}
+    assert captured["body"]["custom_fields"] == {"grade": "5to grado"}
+    assert "id" not in captured["body"]
+
+
+def test_update_customer_sends_only_given_fields_and_none_removes_a_value() -> None:
+    captured: Dict[str, Any] = {}
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        captured["method"] = req.get_method()
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeHTTPResponse(
+            {
+                "data": {
+                    "id": "cus_1",
+                    "merchant_id": "mer_1",
+                    "type": "INDIVIDUAL",
+                    "custom_fields": {"grade": "sexto"},
+                    "created_at": "2026-01-01T00:00:00Z",
+                }
+            }
+        )
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        KutiClient(SECRET_KEY, base_url="https://example.test/v1").customers.update(
+            "cus_1", custom_fields={"grade": "sexto", "birth_date": None}
+        )
+
+    assert captured["method"] == "PATCH"
+    assert captured["body"] == {"custom_fields": {"grade": "sexto", "birth_date": None}}

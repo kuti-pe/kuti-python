@@ -9,6 +9,8 @@ from ..types import (
     PaymentIntent,
     PaymentIntentCustomer,
     PaymentMethodType,
+    customer_input_from,
+    customer_input_to_api,
     RequestOptions,
     money_from_api,
     payment_method_from_api,
@@ -44,14 +46,14 @@ class PaymentIntentsResource:
             if isinstance(amount, Money)
             else Money(amount=str(amount["amount"]), currency=str(amount["currency"]))
         )
-        cust_obj = _normalize_customer(customer)
+        cust = customer_input_to_api(customer_input_from(customer))
 
         body: Dict[str, Any] = {
             "amount": {"amount": money.amount, "currency": money.currency},
             "payment_method_types": list(payment_method_types),
         }
-        if cust_obj is not None:
-            body["customer"] = _customer_to_api(cust_obj)
+        if cust is not None:
+            body["customer"] = cust
         if receivable_id is not None:
             body["receivable_id"] = receivable_id
         if category_id is not None:
@@ -153,49 +155,6 @@ class PaymentIntentsResource:
         )
 
 
-def _normalize_customer(
-    customer: Optional[Union[PaymentIntentCustomer, Dict[str, Any]]],
-) -> Optional[PaymentIntentCustomer]:
-    if customer is None:
-        return None
-    if isinstance(customer, PaymentIntentCustomer):
-        return customer
-    return PaymentIntentCustomer(
-        id=customer.get("id"),
-        type=customer.get("type"),
-        given_name=customer.get("given_name"),
-        family_name=customer.get("family_name"),
-        legal_name=customer.get("legal_name"),
-        email=customer.get("email"),
-        phone=customer.get("phone"),
-        external_id=customer.get("external_id"),
-        document=customer.get("document"),
-    )
-
-
-def _customer_to_api(cust: PaymentIntentCustomer) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    if cust.id is not None:
-        out["id"] = cust.id
-    if cust.type is not None:
-        out["type"] = cust.type
-    if cust.given_name is not None:
-        out["given_name"] = cust.given_name
-    if cust.family_name is not None:
-        out["family_name"] = cust.family_name
-    if cust.legal_name is not None:
-        out["legal_name"] = cust.legal_name
-    if cust.email is not None:
-        out["email"] = cust.email
-    if cust.phone is not None:
-        out["phone"] = cust.phone
-    if cust.external_id is not None:
-        out["external_id"] = cust.external_id
-    if cust.document is not None:
-        out["document"] = cust.document
-    return out
-
-
 def _from_api(dto: Dict[str, Any]) -> PaymentIntent:
     customer = dto.get("customer") or {}
     customer_id = customer.get("id") if isinstance(customer, dict) else None
@@ -228,4 +187,5 @@ def _from_api(dto: Dict[str, Any]) -> PaymentIntent:
         metadata=dto.get("metadata"),
         requires_customer_info=dto.get("requires_customer_info"),
         created_at=dto["created_at"],
+        customer=customer if isinstance(customer, dict) and customer else None,
     )

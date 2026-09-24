@@ -15,6 +15,8 @@ from .errors import (
 from .types import (
     CheckoutSession,
     CheckoutSessionCustomer,
+    Customer,
+    CustomerInput,
     Money,
     PaymentIntent,
     PaymentIntentCustomer,
@@ -26,6 +28,8 @@ __all__ = [
     "KutiClient",
     "Money",
     "CheckoutSessionCustomer",
+    "CustomerInput",
+    "Customer",
     "PaymentIntentCustomer",
     "CheckoutSession",
     "PaymentIntent",
@@ -42,4 +46,4 @@ __all__ = [
     "KutiSignatureVerificationError",
 ]
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"

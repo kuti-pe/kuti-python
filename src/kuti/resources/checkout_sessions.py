@@ -6,6 +6,8 @@ from ..types import (
     CheckoutSession,
     CheckoutSessionCustomer,
     Money,
+    customer_input_from,
+    customer_input_to_api,
     PaymentMethodType,
     RequestOptions,
     money_from_api,
@@ -39,35 +41,12 @@ class CheckoutSessionsResource:
             if isinstance(amount, Money)
             else Money(amount=str(amount["amount"]), currency=str(amount["currency"]))
         )
-        cust_obj: Optional[CheckoutSessionCustomer] = None
-        if customer is not None:
-            if isinstance(customer, CheckoutSessionCustomer):
-                cust_obj = customer
-            else:
-                cust_obj = CheckoutSessionCustomer(
-                    id=customer.get("id"),
-                    external_id=customer.get("external_id"),
-                    name=customer.get("name"),
-                    email=customer.get("email"),
-                    phone=customer.get("phone"),
-                )
-
         body: Dict[str, Any] = {
             "amount": {"amount": money.amount, "currency": money.currency},
             "payment_method_types": list(payment_method_types),
         }
-        if cust_obj is not None:
-            cust: Dict[str, Any] = {}
-            if cust_obj.id is not None:
-                cust["id"] = cust_obj.id
-            if cust_obj.external_id is not None:
-                cust["external_id"] = cust_obj.external_id
-            if cust_obj.name is not None:
-                cust["name"] = cust_obj.name
-            if cust_obj.email is not None:
-                cust["email"] = cust_obj.email
-            if cust_obj.phone is not None:
-                cust["phone"] = cust_obj.phone
+        cust = customer_input_to_api(customer_input_from(customer))
+        if cust is not None:
             body["customer"] = cust
         if description is not None:
             body["description"] = description

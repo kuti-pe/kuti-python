@@ -7,6 +7,7 @@ import urllib.request
 from typing import Any, Dict, Optional
 from .errors import KutiConnectionError, error_for_status
 from .resources.checkout_sessions import CheckoutSessionsResource
+from .resources.customers import CustomersResource
 from .resources.payment_intents import PaymentIntentsResource
 from .types import RequestOptions
 
@@ -19,7 +20,7 @@ _RETRYABLE_STATUS = {429, 503}
 class KutiClient:
     """Cliente HTTP central de KUTI.
 
-    Cuelgan de aquí los recursos (``checkout_sessions``, ``payment_intents``);
+    Cuelgan de aquí los recursos (``checkout_sessions``, ``customers``, ``payment_intents``);
     esta clase solo resuelve auth, reintentos y mapeo de errores.
     """
 
@@ -32,6 +33,7 @@ class KutiClient:
         self._secret_key = secret_key
         self._base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
         self.checkout_sessions = CheckoutSessionsResource(self)
+        self.customers = CustomersResource(self)
         self.payment_intents = PaymentIntentsResource(self)
 
     def request(

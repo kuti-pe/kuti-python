@@ -23,11 +23,44 @@ session = kuti.checkout_sessions.create(
     payment_method_types=["INTEROPERABLE_QR", "BANK_TRANSFER"],
     description="Zapatillas running talla 42",
     customer={"id": "cus_01ABC"},
-    # customer={"name": "María López", "email": "maria@example.com"},
+    # customer={"first_name": "María", "last_name": "López", "email": "maria@example.com"},
     idempotency_key=f"order-{order_id}",
 )
 
 # window.Kuti.open({ checkoutUrl: session.checkout_url, onSuccess, onFailure })
+```
+
+## Clientes y campos personalizados
+
+El cliente tiene la **misma forma** en `customers.create`, en el `customer` de un cobro y en el de
+una checkout session. `custom_fields` son los campos que el negocio definió en
+**Ajustes → Clientes → Campos** (la key de cada campo):
+
+```python
+from kuti import CustomerInput
+
+customer = kuti.customers.create(
+    CustomerInput(
+        type="INDIVIDUAL",
+        first_name="María",
+        last_name="López",
+        document={"type": "DNI", "number": "45678912"},  # type opcional: se deduce del número
+        email="maria@example.com",
+        custom_fields={"grade": "quinto", "student_code": "2026-00781"},
+    )
+)
+
+# En un cobro: se reutiliza el cliente por id → external_id → documento, o se crea.
+kuti.payment_intents.create(
+    amount={"amount": "250.00", "currency": "PEN"},
+    payment_method_types=["INTEROPERABLE_QR"],
+    description="Pensión marzo",
+    customer={"document": {"number": "45678912"}, "custom_fields": {"grade": "sexto"}},
+    idempotency_key="pension-2026-03-45678912",
+)
+
+# Editar: solo cambian las keys enviadas; None borra el valor.
+kuti.customers.update(customer.id, custom_fields={"birth_date": None})
 ```
 
 ## Confirmar un pago
@@ -88,6 +121,7 @@ Los `GET` y los `POST` con `idempotency_key` se reintentan automáticamente en e
 ## API
 
 - `KutiClient(secret_key, base_url=None)`
+- `kuti.customers.create(customer, metadata=None)` / `retrieve(id)` / `update(id, ...)` / `list(...)` / `delete(id)`
 - `kuti.checkout_sessions.create(...)` — Checkout.js
 - `kuti.payment_intents.create(...)` — cobro directo
 - `kuti.payment_intents.list(...)`
