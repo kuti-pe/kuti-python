@@ -363,3 +363,92 @@ def test_update_customer_sends_only_given_fields_and_none_removes_a_value() -> N
 
     assert captured["method"] == "PATCH"
     assert captured["body"] == {"custom_fields": {"grade": "sexto", "birth_date": None}}
+
+
+def _capture_urlopen(responses: list, calls: list):
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        calls.append(
+            {
+                "url": req.full_url,
+                "method": req.get_method(),
+                "body": json.loads(req.data.decode("utf-8")) if req.data else None,
+            }
+        )
+        return FakeHTTPResponse(responses.pop(0))
+
+    return fake_urlopen
+
+
+def test_creates_payment_link_and_keeps_empty_question_list() -> None:
+    calls: list = []
+    responses = [
+        {
+            "data": {
+                "id": "plink_1",
+                "merchant_id": "mer_1",
+                "livemode": False,
+                "slug": "taller-excel",
+                "url": "https://pay.kuti.pe/l/taller-excel",
+                "title": "Taller de Excel",
+                "template": "COURSE",
+                "pricing": "FIXED",
+                "currency": "PEN",
+                "amount": "120.00",
+                "payment_method_types": ["INTEROPERABLE_QR"],
+                "status": "ACTIVE",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+            }
+        }
+    ]
+    with patch("kuti.client.urllib.request.urlopen", side_effect=_capture_urlopen(responses, calls)):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        link = client.payment_links.create(
+            title="Taller de Excel",
+            pricing="FIXED",
+            amount="120.00",
+            payment_method_types=["INTEROPERABLE_QR"],
+            customer_field_ids=[],
+            button_label="Inscribirme",
+        )
+    assert calls[0]["method"] == "POST"
+    assert calls[0]["url"] == "https://example.test/v1/payment-links"
+    assert calls[0]["body"]["customer_field_ids"] == []
+    assert calls[0]["body"]["button_label"] == "Inscribirme"
+    assert link.url == "https://pay.kuti.pe/l/taller-excel"
+    assert link.is_active
+
+
+def test_payment_links_reject_unknown_params() -> None:
+    client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+    with pytest.raises(TypeError, match="desconocidos"):
+        client.payment_links.create(title="x", pricing="FIXED", buttonLabel="camelCase")
+
+
+def test_filters_intents_by_source_and_sends_send_via() -> None:
+    calls: list = []
+    responses = [
+        {"data": [], "pagination": {"page": 1, "per_page": 25, "total": 0, "total_pages": 0}},
+        {
+            "data": {
+                "id": "pi_1",
+                "merchant_id": "mer_1",
+                "amount": {"amount": "10.00", "currency": "PEN"},
+                "status": "PENDING",
+                "send_via": ["WHATSAPP"],
+                "created_at": "2026-01-01T00:00:00Z",
+            }
+        },
+    ]
+    with patch("kuti.client.urllib.request.urlopen", side_effect=_capture_urlopen(responses, calls)):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        client.payment_intents.list(source="link", payment_link_id="plink_1")
+        intent = client.payment_intents.create(
+            amount={"amount": "10.00", "currency": "PEN"},
+            payment_method_types=["INTEROPERABLE_QR"],
+            send_via=["WHATSAPP"],
+        )
+    assert "source=link" in calls[0]["url"]
+    assert "payment_link_id=plink_1" in calls[0]["url"]
+    assert calls[1]["body"]["send_via"] == ["WHATSAPP"]
+    assert intent.send_via == ["WHATSAPP"]

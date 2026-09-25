@@ -39,8 +39,13 @@ class PaymentIntentsResource:
         merchant_id: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
         idempotency_key: Optional[str] = None,
+        send_via: Optional[List[str]] = None,
     ) -> PaymentIntent:
-        """POST /payment-intents — QR, bank code, checkout_url."""
+        """POST /payment-intents — QR, bank code, checkout_url.
+
+        ``send_via``: por dónde se envía el cobro al cliente ("EMAIL", "WHATSAPP"). None =
+        ["EMAIL"]; [] = no enviar. WHATSAPP necesita teléfono del cliente (usa 1 moneda).
+        """
         money = (
             amount
             if isinstance(amount, Money)
@@ -70,6 +75,8 @@ class PaymentIntentsResource:
             body["merchant_id"] = merchant_id
         if metadata is not None:
             body["metadata"] = metadata
+        if send_via is not None:
+            body["send_via"] = list(send_via)
 
         opts = RequestOptions(idempotency_key=idempotency_key) if idempotency_key else None
         response = self._client.request("POST", "/payment-intents", body, opts)
@@ -81,12 +88,17 @@ class PaymentIntentsResource:
         status: Optional[str] = None,
         q: Optional[str] = None,
         customer_id: Optional[str] = None,
+        source: Optional[str] = None,
+        payment_link_id: Optional[str] = None,
         created_from: Optional[str] = None,
         created_to: Optional[str] = None,
         page: Optional[int] = None,
         per_page: Optional[Union[int, str]] = None,
     ) -> Dict[str, Any]:
-        """GET /payment-intents — returns ``{"data": [...], "pagination": {...}}``."""
+        """GET /payment-intents — returns ``{"data": [...], "pagination": {...}}``.
+
+        ``source``: "single" | "link" | "recurring". ``payment_link_id``: solo los cobros de ese link.
+        """
         query: Dict[str, str] = {}
         if status is not None:
             query["status"] = status
@@ -94,6 +106,10 @@ class PaymentIntentsResource:
             query["q"] = q
         if customer_id is not None:
             query["customer_id"] = customer_id
+        if source is not None:
+            query["source"] = source
+        if payment_link_id is not None:
+            query["payment_link_id"] = payment_link_id
         if created_from is not None:
             query["created_from"] = created_from
         if created_to is not None:
@@ -188,4 +204,6 @@ def _from_api(dto: Dict[str, Any]) -> PaymentIntent:
         requires_customer_info=dto.get("requires_customer_info"),
         created_at=dto["created_at"],
         customer=customer if isinstance(customer, dict) and customer else None,
+        payment_link_id=dto.get("payment_link_id"),
+        send_via=dto.get("send_via"),
     )

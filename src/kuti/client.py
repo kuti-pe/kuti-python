@@ -9,6 +9,7 @@ from .errors import KutiConnectionError, error_for_status
 from .resources.checkout_sessions import CheckoutSessionsResource
 from .resources.customers import CustomersResource
 from .resources.payment_intents import PaymentIntentsResource
+from .resources.payment_links import PaymentLinksResource
 from .types import RequestOptions
 
 DEFAULT_BASE_URL = "https://api.kuti.pe/v1"
@@ -35,6 +36,7 @@ class KutiClient:
         self.checkout_sessions = CheckoutSessionsResource(self)
         self.customers = CustomersResource(self)
         self.payment_intents = PaymentIntentsResource(self)
+        self.payment_links = PaymentLinksResource(self)
 
     def request(
         self,

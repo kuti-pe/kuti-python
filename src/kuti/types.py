@@ -141,6 +141,10 @@ class PaymentIntent:
     # Cliente congelado en el cobro: id, type, first_name, last_name, company_name, name,
     # document {type, number, country}, email, custom_fields.
     customer: Optional[Dict[str, Any]] = None
+    # Link de pago del que salió este cobro (plink_…), si aplica.
+    payment_link_id: Optional[str] = None
+    # Canales por los que se envió el cobro al crearlo ("EMAIL", "WHATSAPP").
+    send_via: Optional[List[str]] = None
 
 
 @dataclass
@@ -252,3 +256,45 @@ def customer_from_api(dto: Dict[str, Any]) -> Customer:
         custom_fields=dto.get("custom_fields") or {},
         payment_intents_count=dto.get("payment_intents_count"),
     )
+
+
+@dataclass
+class PaymentLink:
+    """Link de pago: un enlace permanente que pagan muchas personas. Cada pago es un cobro con
+    ``payment_link_id``."""
+
+    id: str
+    merchant_id: str
+    livemode: bool
+    slug: str
+    url: str  # pay.kuti.pe/l/{slug}: la URL para compartir
+    title: str
+    template: str
+    pricing: str
+    currency: str
+    status: str
+    payment_method_types: List[str]
+    created_at: str
+    updated_at: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    amount: Optional[str] = None
+    min_amount: Optional[str] = None
+    max_amount: Optional[str] = None
+    suggested_amounts: List[str] = field(default_factory=list)
+    category_id: Optional[str] = None
+    expires_at: Optional[str] = None
+    # Preguntas a quien paga (copia): id, key, label, type, options, required, help_text.
+    customer_fields: List[Dict[str, Any]] = field(default_factory=list)
+    button_label: Optional[str] = None
+    success_message: Optional[str] = None
+    success_button_label: Optional[str] = None
+    success_button_url: Optional[str] = None
+    payments_count: Optional[int] = None  # pagos confirmados
+    checkouts_count: Optional[int] = None  # llenaron sus datos
+    views_count: Optional[int] = None  # visitas a la página
+    amount_collected: Optional[str] = None
+
+    @property
+    def is_active(self) -> bool:
+        return self.status == "ACTIVE"

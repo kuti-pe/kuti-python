@@ -118,17 +118,53 @@ except KutiApiError as err:
 
 Los `GET` y los `POST` con `idempotency_key` se reintentan automáticamente en errores de red o `429`/`503`. Un `POST` sin `idempotency_key` nunca se reintenta, para no duplicar un cobro.
 
+
+## Links de pago
+
+Un enlace permanente que pagan muchas personas (curso, entrada, donación). Cada pago es un cobro
+normal con `payment_link_id`.
+
+```python
+link = kuti.payment_links.create(
+    title="Taller de Excel — sábado 10am",
+    template="COURSE",
+    pricing="FIXED",
+    amount="120.00",
+    payment_method_types=["INTEROPERABLE_QR", "BANK_TRANSFER"],
+    customer_field_ids=["cfd_…"],  # [] = solo nombre, apellido y correo
+    button_label="Inscribirme",
+    success_message="¡Listo! Te esperamos el sábado.",
+    success_button_label="Unirme al grupo",
+    success_button_url="https://chat.whatsapp.com/…",
+)
+print(link.url)  # https://pay.kuti.pe/l/taller-de-excel
+
+# Quienes pagaron el link
+paid = kuti.payment_intents.list(payment_link_id=link.id, status="SUCCEEDED", per_page="all")
+```
+
+## Enviar el cobro al crearlo
+
+```python
+kuti.payment_intents.create(
+    amount={"amount": "250.00", "currency": "PEN"},
+    payment_method_types=["INTEROPERABLE_QR"],
+    customer={"id": "cus_…"},
+    send_via=["EMAIL", "WHATSAPP"],  # None = ["EMAIL"]; [] = no enviar
+)
+```
+
 ## API
 
 - `KutiClient(secret_key, base_url=None)`
 - `kuti.customers.create(customer, metadata=None)` / `retrieve(id)` / `update(id, ...)` / `list(...)` / `delete(id)`
 - `kuti.checkout_sessions.create(...)` — Checkout.js
 - `kuti.payment_intents.create(...)` — cobro directo
-- `kuti.payment_intents.list(...)`
+- `kuti.payment_intents.list(...)` — filtros `status`, `q`, `customer_id`, `source` (single | link | recurring), `payment_link_id`
 - `kuti.payment_intents.retrieve(id)`
 - `kuti.payment_intents.cancel(id)`
 - `kuti.payment_intents.send_whatsapp(id, ...)`
-- `verify_webhook_signature(...)`
+- `kuti.payment_links.create(...)` / `retrieve(id)` / `update(id, ...)` / `list(...)` / `activate(id)` / `deactivate(id)` / `check_slug(slug, except_id=None)`
 - `verify_webhook_signature(payload, signature_header, timestamp_header, secret, tolerance_seconds=300)`
 
 ## Requisitos
