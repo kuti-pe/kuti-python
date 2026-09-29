@@ -101,10 +101,10 @@ def kuti_webhook():
 
 ## Manejo de errores
 
-Todas las excepciones de la API extienden `KutiApiError` (`status`, `code`, `request_id`, `doc_url`, `details`):
+Todas las excepciones de la API extienden `KutiApiError` (`status`, `code`, `request_id`, `correlation_id`, `doc_url`, `details`):
 
 ```python
-from kuti import KutiValidationError, KutiNotFoundError, KutiApiError
+from kuti import KutiValidationError, KutiNotFoundError, KutiPermissionError, KutiApiError
 
 try:
     kuti.checkout_sessions.create(...)
@@ -112,8 +112,14 @@ except KutiValidationError as err:
     print(err.details)  # [ErrorDetail(field="amount.amount", ...)]
 except KutiNotFoundError:
     pass
+except KutiPermissionError as err:
+    if err.is_insufficient_scope:
+        ...  # a la API key le falta el permiso de este endpoint (edítala en el panel o usa otra)
+    elif err.is_dashboard_only:
+        ...  # endpoint solo del panel de KUTI (p. ej. cambiar la cuenta bancaria)
 except KutiApiError as err:
     print(err.code, err.request_id)  # úsalo al reportar un bug a soporte
+    diagnosis = kuti.diagnostics.get_request(err.request_id)  # qué pasó con esa llamada
 ```
 
 Los `GET` y los `POST` con `idempotency_key` se reintentan automáticamente en errores de red o `429`/`503`. Un `POST` sin `idempotency_key` nunca se reintenta, para no duplicar un cobro.
@@ -165,6 +171,9 @@ kuti.payment_intents.create(
 - `kuti.payment_intents.cancel(id)`
 - `kuti.payment_intents.send_whatsapp(id, ...)`
 - `kuti.payment_links.create(...)` / `retrieve(id)` / `update(id, ...)` / `list(...)` / `activate(id)` / `deactivate(id)` / `check_slug(slug, except_id=None)`
+- `kuti.payment_exceptions.list(...)` / `resolve(id, status=..., note=None)` — pagos para revisar
+- `kuti.webhook_deliveries.retrieve(id)` / `retry(id)` — cada intento con el status HTTP y lo que respondió tu servidor
+- `kuti.diagnostics.get_request(request_id)` / `list_by_correlation_id(id)` / `trace_payment_intent(id)` — permiso `diagnostics:read`
 - `verify_webhook_signature(payload, signature_header, timestamp_header, secret, tolerance_seconds=300)`
 
 ## Requisitos

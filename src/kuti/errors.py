@@ -17,11 +17,15 @@ class KutiApiError(Exception):
         request_id: Optional[str] = None,
         doc_url: Optional[str] = None,
         details: Optional[List[Any]] = None,
+        correlation_id: Optional[str] = None,
     ) -> None:
         super().__init__(message)
         self.status = status
         self.code = code
+        # Pásalo a client.diagnostics.get_request(request_id) para ver qué pasó.
         self.request_id = request_id
+        # El X-Request-Id que enviaste (o el mismo request_id si no enviaste uno).
+        self.correlation_id = correlation_id
         self.doc_url = doc_url
         self.details: List[ErrorDetail] = []
         for d in details or []:
@@ -40,7 +44,18 @@ class KutiAuthenticationError(KutiApiError):
 
 
 class KutiPermissionError(KutiApiError):
-    """403 — key válida pero sin permiso."""
+    """403 — key válida pero no puede hacer esto. Revisa ``code``: INSUFFICIENT_SCOPE (a la key le
+    falta el permiso), API_KEY_NOT_ALLOWED (endpoint solo del panel de KUTI) o KYB_REQUIRED."""
+
+    @property
+    def is_insufficient_scope(self) -> bool:
+        """A la API key le falta el permiso de este endpoint."""
+        return self.code == "INSUFFICIENT_SCOPE"
+
+    @property
+    def is_dashboard_only(self) -> bool:
+        """El endpoint es solo del panel: ninguna API key puede usarlo."""
+        return self.code == "API_KEY_NOT_ALLOWED"
 
 
 class KutiNotFoundError(KutiApiError):
@@ -79,6 +94,7 @@ def error_for_status(
     request_id: Optional[str] = None,
     doc_url: Optional[str] = None,
     details: Optional[List[Any]] = None,
+    correlation_id: Optional[str] = None,
 ) -> KutiApiError:
     kwargs = dict(
         status=status,
@@ -87,6 +103,7 @@ def error_for_status(
         request_id=request_id,
         doc_url=doc_url,
         details=details,
+        correlation_id=correlation_id,
     )
     if status == 401:
         return KutiAuthenticationError(**kwargs)

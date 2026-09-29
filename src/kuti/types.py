@@ -73,6 +73,7 @@ class Customer:
     metadata: Optional[Dict[str, str]] = None
     custom_fields: Dict[str, Any] = field(default_factory=dict)
     payment_intents_count: Optional[int] = None  # solo en customers.retrieve
+    code: Optional[str] = None  # código de pago del cliente (ej. ZIZE00001); lo asigna KUTI
 
 
 @dataclass(frozen=True)
@@ -255,6 +256,7 @@ def customer_from_api(dto: Dict[str, Any]) -> Customer:
         metadata=dto.get("metadata"),
         custom_fields=dto.get("custom_fields") or {},
         payment_intents_count=dto.get("payment_intents_count"),
+        code=dto.get("code"),
     )
 
 
@@ -298,3 +300,44 @@ class PaymentLink:
     @property
     def is_active(self) -> bool:
         return self.status == "ACTIVE"
+
+
+@dataclass(frozen=True)
+class PaymentException:
+    """Un pago que entró pero no correspondía (pagaron dos veces, un cobro anulado o fallido, una
+    cuota ya pagada, otro monto). El dinero ya está en tu saldo.
+
+    reason: DUPLICATE | ON_CANCELLED | ON_FAILED | RECEIVABLE_ALREADY_PAID | AMOUNT_MISMATCH
+    status: OPEN | REFUNDED | APPLIED | DISMISSED
+    """
+
+    id: str
+    merchant_id: str
+    livemode: bool
+    payment_intent_id: str
+    amount: Money
+    reason: str
+    status: str
+    created_at: str
+    payment_method_type: Optional[str] = None
+    balance_transaction_id: Optional[str] = None
+    resolution_note: Optional[str] = None
+    resolved_at: Optional[str] = None
+
+
+def payment_exception_from_api(dto: Dict[str, Any]) -> PaymentException:
+    amount = dto.get("amount") or {}
+    return PaymentException(
+        id=dto["id"],
+        merchant_id=dto["merchant_id"],
+        livemode=bool(dto.get("livemode")),
+        payment_intent_id=dto["payment_intent_id"],
+        amount=Money(amount=amount.get("amount", "0"), currency=amount.get("currency", "PEN")),
+        reason=dto["reason"],
+        status=dto["status"],
+        created_at=dto["created_at"],
+        payment_method_type=dto.get("payment_method_type"),
+        balance_transaction_id=dto.get("balance_transaction_id"),
+        resolution_note=dto.get("resolution_note"),
+        resolved_at=dto.get("resolved_at"),
+    )

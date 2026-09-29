@@ -13,6 +13,7 @@ from kuti import (
     KutiAuthenticationError,
     KutiClient,
     KutiNotFoundError,
+    KutiPermissionError,
     KutiRateLimitError,
     KutiValidationError,
 )
@@ -452,3 +453,80 @@ def test_filters_intents_by_source_and_sends_send_via() -> None:
     assert "payment_link_id=plink_1" in calls[0]["url"]
     assert calls[1]["body"]["send_via"] == ["WHATSAPP"]
     assert intent.send_via == ["WHATSAPP"]
+
+
+def test_permission_error_kind_and_correlation_id() -> None:
+    body = {
+        "success": False,
+        "message": "Sin permiso",
+        "error": {
+            "code": "INSUFFICIENT_SCOPE",
+            "message": "Esta API key no tiene el permiso payment_intents:write.",
+            "request_id": "req_1",
+            "correlation_id": "pedido-1042",
+        },
+    }
+    with patch("kuti.client.urllib.request.urlopen", side_effect=http_error(403, body)):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        with pytest.raises(KutiPermissionError) as exc:
+            client.payment_intents.retrieve("pi_1")
+    assert exc.value.is_insufficient_scope is True
+    assert exc.value.is_dashboard_only is False
+    assert exc.value.request_id == "req_1"
+    assert exc.value.correlation_id == "pedido-1042"
+
+
+def test_payment_exceptions_list_and_resolve() -> None:
+    row = {
+        "id": "pexc_1", "merchant_id": "mer_1", "livemode": False, "payment_intent_id": "pi_1",
+        "payment_method_type": "BANK_TRANSFER", "amount": {"amount": "250.00", "currency": "PEN"},
+        "reason": "DUPLICATE", "status": "OPEN", "created_at": "2026-09-29T15:20:00Z",
+    }
+    calls: list = []
+    responses = [
+        FakeHTTPResponse({"data": [row], "pagination": {"page": 1, "total": 1}}),
+        FakeHTTPResponse({"data": {**row, "status": "REFUNDED", "resolution_note": "Devuelto"}}),
+    ]
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        calls.append(req)
+        return responses.pop(0)
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        listed = client.payment_exceptions.list(status="OPEN", payment_intent_id="pi_1")
+        resolved = client.payment_exceptions.resolve("pexc_1", status="REFUNDED", note="Devuelto")
+
+    assert calls[0].full_url == "https://example.test/v1/payment-exceptions?status=OPEN&payment_intent_id=pi_1"
+    assert listed["data"][0].reason == "DUPLICATE"
+    assert listed["data"][0].amount.amount == "250.00"
+    assert json.loads(calls[1].data.decode("utf-8")) == {"status": "REFUNDED", "note": "Devuelto"}
+    assert resolved.status == "REFUNDED"
+    assert resolved.resolution_note == "Devuelto"
+
+
+def test_diagnostics_and_customer_code() -> None:
+    calls: list = []
+    responses = [
+        FakeHTTPResponse({"data": {"request": {"id": "req_1", "status": 201}, "events": []}}),
+        FakeHTTPResponse({"data": {"payment_intent_id": "pi_1", "timeline": []}}),
+        FakeHTTPResponse({"data": {
+            "id": "cus_1", "merchant_id": "mer_1", "code": "ZIZE00001", "type": "INDIVIDUAL",
+            "created_at": "2026-01-01T00:00:00Z",
+        }}),
+    ]
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        calls.append(req)
+        return responses.pop(0)
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        diagnosis = client.diagnostics.get_request("req_1")
+        trace = client.diagnostics.trace_payment_intent("pi_1")
+        customer = client.customers.retrieve("cus_1")
+
+    assert diagnosis["request"]["status"] == 201
+    assert calls[1].full_url == "https://example.test/v1/diagnostics/payment-intents/pi_1/trace"
+    assert trace["payment_intent_id"] == "pi_1"
+    assert customer.code == "ZIZE00001"

@@ -9,7 +9,10 @@ from .errors import KutiConnectionError, error_for_status
 from .resources.checkout_sessions import CheckoutSessionsResource
 from .resources.customers import CustomersResource
 from .resources.payment_intents import PaymentIntentsResource
+from .resources.diagnostics import DiagnosticsResource
+from .resources.payment_exceptions import PaymentExceptionsResource
 from .resources.payment_links import PaymentLinksResource
+from .resources.webhook_deliveries import WebhookDeliveriesResource
 from .types import RequestOptions
 
 DEFAULT_BASE_URL = "https://api.kuti.pe/v1"
@@ -37,6 +40,9 @@ class KutiClient:
         self.customers = CustomersResource(self)
         self.payment_intents = PaymentIntentsResource(self)
         self.payment_links = PaymentLinksResource(self)
+        self.payment_exceptions = PaymentExceptionsResource(self)
+        self.webhook_deliveries = WebhookDeliveriesResource(self)
+        self.diagnostics = DiagnosticsResource(self)
 
     def request(
         self,
@@ -89,6 +95,7 @@ class KutiClient:
                     request_id=err_body.get("request_id"),
                     doc_url=err_body.get("doc_url"),
                     details=err_body.get("details"),
+                    correlation_id=err_body.get("correlation_id"),
                 )
                 if can_retry and exc.code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
                     last_error = api_error
