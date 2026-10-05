@@ -12,6 +12,7 @@ from .resources.payment_intents import PaymentIntentsResource
 from .resources.diagnostics import DiagnosticsResource
 from .resources.payment_exceptions import PaymentExceptionsResource
 from .resources.payment_links import PaymentLinksResource
+from .resources.subscriptions import SubscriptionsResource
 from .resources.webhook_deliveries import WebhookDeliveriesResource
 from .types import RequestOptions
 
@@ -24,7 +25,8 @@ _RETRYABLE_STATUS = {429, 503}
 class KutiClient:
     """Cliente HTTP central de KUTI.
 
-    Cuelgan de aquí los recursos (``checkout_sessions``, ``customers``, ``payment_intents``);
+    Cuelgan de aquí los recursos (``checkout_sessions``, ``customers``, ``payment_intents``, ``payment_links``,
+    ``subscriptions``…);
     esta clase solo resuelve auth, reintentos y mapeo de errores.
     """
 
@@ -40,6 +42,7 @@ class KutiClient:
         self.customers = CustomersResource(self)
         self.payment_intents = PaymentIntentsResource(self)
         self.payment_links = PaymentLinksResource(self)
+        self.subscriptions = SubscriptionsResource(self)
         self.payment_exceptions = PaymentExceptionsResource(self)
         self.webhook_deliveries = WebhookDeliveriesResource(self)
         self.diagnostics = DiagnosticsResource(self)

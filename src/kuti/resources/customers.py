@@ -82,6 +82,22 @@ class CustomersResource:
         data: List[Customer] = [customer_from_api(c) for c in response.get("data") or []]
         return {"data": data, "pagination": response.get("pagination") or {}}
 
+    def list_payment_methods(self, customer_id: str) -> List[Dict[str, Any]]:
+        """GET /customers/{id}/payment-methods — medios guardados (su Yape afiliado), sin los ya
+        desvinculados. Cada uno: ``id``, ``type``, ``status`` (ACTIVE | REVOKED),
+        ``phone_last4``, ``last_used_at``, ``created_at``."""
+        response = self._client.request("GET", f"/customers/{quote(customer_id, safe='')}/payment-methods")
+        return [_payment_method(pm) for pm in response.get("data") or []]
+
+    def detach_payment_method(self, customer_id: str, payment_method_id: str) -> Dict[str, Any]:
+        """DELETE /customers/{id}/payment-methods/{pm} — desvincula el medio: ya no se le puede
+        cobrar hasta que lo afilie de nuevo."""
+        response = self._client.request(
+            "DELETE",
+            f"/customers/{quote(customer_id, safe='')}/payment-methods/{quote(payment_method_id, safe='')}",
+        )
+        return _payment_method(response["data"])
+
     def delete(self, customer_id: str) -> Dict[str, Any]:
         """DELETE /customers/{id} — se archiva en vez de borrarse si tiene cobros."""
         response = self._client.request("DELETE", f"/customers/{quote(customer_id, safe='')}")
@@ -90,3 +106,14 @@ class CustomersResource:
             "archived": bool(response.get("archived")),
             "payment_intents_count": int(response.get("payment_intents_count") or 0),
         }
+
+
+def _payment_method(dto: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": dto["id"],
+        "type": dto.get("type") or "YAPE",
+        "status": dto.get("status") or "ACTIVE",
+        "phone_last4": (dto.get("display") or {}).get("phone_last4"),
+        "last_used_at": dto.get("last_used_at"),
+        "created_at": dto.get("created_at"),
+    }

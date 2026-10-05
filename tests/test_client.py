@@ -530,3 +530,103 @@ def test_diagnostics_and_customer_code() -> None:
     assert calls[1].full_url == "https://example.test/v1/diagnostics/payment-intents/pi_1/trace"
     assert trace["payment_intent_id"] == "pi_1"
     assert customer.code == "ZIZE00001"
+
+
+def test_subscriptions_create_charge_and_map_the_latest_cycle() -> None:
+    calls: list = []
+    responses = [
+        FakeHTTPResponse({"data": {
+            "id": "sub_1", "merchant_id": "mer_1", "description": "Plan Pro", "billing_mode": "fixed",
+            "amount": {"amount": "99.00", "currency": "PEN"},
+            "items": [{"description": "Plan Pro", "unit_amount": "99.00", "quantity": 1, "amount": "99.00"}],
+            "frequency": "MONTHLY", "interval": 1, "start_date": "2026-10-05", "charge_time": "09:00",
+            "status": "INCOMPLETE",
+            "retry_policy": {"interval_days": [1, 3, 5], "on_exhausted": "past_due"},
+            "latest_cycle": {
+                "id": "subc_1", "billing_period": "2026-10", "due_date": "2026-10-05",
+                "amount": {"amount": "99.00", "currency": "PEN"}, "status": "OPEN", "attempts": 0,
+                "last_failure_code": "payment_method_required", "payment_intent_id": "pi_1",
+                "checkout_url": "https://pay.kuti.pe/c/ABC",
+            },
+            "created_at": "2026-10-05T14:00:00Z",
+        }}),
+        FakeHTTPResponse({"data": {
+            "id": "sub_2", "merchant_id": "mer_1", "description": "LIA por consumo",
+            "billing_mode": "variable", "frequency": "MONTHLY", "interval": 1,
+            "start_date": "2026-09-05", "status": "ACTIVE", "created_at": "2026-09-05T14:00:00Z",
+        }}),
+    ]
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        calls.append(req)
+        return responses.pop(0)
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        sub = client.subscriptions.create(
+            customer={"id": "cus_1"},
+            description="Plan Pro",
+            amount="99.00",
+            frequency="MONTHLY",
+            charge_time="09:00",
+            retry_policy={"interval_days": [], "on_exhausted": "cancel"},
+            idempotency_key="alta-1",
+        )
+        charged = client.subscriptions.charge("sub_2", amount="184.00", period="2026-10")
+
+    body = json.loads(calls[0].data.decode("utf-8"))
+    assert calls[0].full_url == "https://example.test/v1/subscriptions"
+    assert calls[0].get_header("Idempotency-key") == "alta-1"
+    assert body["customer"] == {"id": "cus_1"}
+    assert body["retry_policy"] == {"interval_days": [], "on_exhausted": "cancel"}
+    assert sub.status == "INCOMPLETE"
+    assert sub.amount is not None and sub.amount.amount == "99.00"
+    assert sub.latest_cycle["last_failure_code"] == "payment_method_required"
+    assert sub.latest_cycle["checkout_url"] == "https://pay.kuti.pe/c/ABC"
+    assert sub.latest_cycle["amount"].amount == "99.00"
+
+    assert calls[1].full_url == "https://example.test/v1/subscriptions/sub_2/charges"
+    assert json.loads(calls[1].data.decode("utf-8")) == {"amount": "184.00", "period": "2026-10"}
+    assert charged.billing_mode == "variable"
+    assert charged.amount is None
+
+
+def test_saved_payment_methods_and_direct_charge() -> None:
+    calls: list = []
+    responses = [
+        FakeHTTPResponse({"data": [
+            {"id": "pm_1", "type": "YAPE", "status": "ACTIVE", "display": {"phone_last4": "2011"}},
+        ]}),
+        FakeHTTPResponse({"data": {
+            "id": "pi_1", "merchant_id": "mer_1", "amount": {"amount": "80.00", "currency": "PEN"},
+            "status": "PENDING", "saved_payment_methods": {"status": "disabled"},
+            "last_saved_method_payment": {"status": "FAILED", "failure_code": "insufficient_funds"},
+            "created_at": "2026-10-05T14:00:00Z",
+        }}),
+        FakeHTTPResponse({"data": {"customer_session_secret": "cuss_secret_x", "expires_at": "2026-10-05T14:30:00Z"}}),
+    ]
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        calls.append(req)
+        return responses.pop(0)
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        methods = client.customers.list_payment_methods("cus_1")
+        pi = client.payment_intents.create(
+            amount={"amount": "80.00", "currency": "PEN"},
+            payment_method_types=["YAPE"],
+            customer={"id": "cus_1"},
+            payment_method=methods[0]["id"],
+            confirm=True,
+        )
+        session = client.payment_intents.create_customer_session("pi_1")
+
+    assert calls[0].full_url == "https://example.test/v1/customers/cus_1/payment-methods"
+    assert methods[0]["phone_last4"] == "2011"
+    body = json.loads(calls[1].data.decode("utf-8"))
+    assert body["payment_method"] == "pm_1" and body["confirm"] is True
+    assert pi.last_saved_method_payment == {"status": "FAILED", "failure_code": "insufficient_funds"}
+    assert calls[2].full_url == "https://example.test/v1/payment-intents/pi_1/customer-session"
+    assert session["customer_session_secret"] == "cuss_secret_x"
+

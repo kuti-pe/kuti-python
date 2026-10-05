@@ -40,11 +40,20 @@ class PaymentIntentsResource:
         metadata: Optional[Dict[str, str]] = None,
         idempotency_key: Optional[str] = None,
         send_via: Optional[List[str]] = None,
+        saved_payment_methods: Optional[str] = None,
+        payment_method: Optional[str] = None,
+        confirm: Optional[bool] = None,
     ) -> PaymentIntent:
         """POST /payment-intents — QR, bank code, checkout_url.
 
         ``send_via``: por dónde se envía el cobro al cliente ("EMAIL", "WHATSAPP"). None =
         ["EMAIL"]; [] = no enviar. WHATSAPP necesita teléfono del cliente (usa 1 moneda).
+
+        ``saved_payment_methods="enabled"``: le envías este enlace a tu cliente; por 30 minutos el
+        checkout le muestra su Yape guardado. Requiere cliente y "YAPE" en los métodos.
+        ``payment_method`` (pm_…) + ``confirm=True``: crea el cobro y lo debita ya, sin el cliente
+        presente; el resultado viene en ``last_saved_method_payment`` y, si se deniega, el cobro
+        queda abierto.
         """
         money = (
             amount
@@ -77,6 +86,12 @@ class PaymentIntentsResource:
             body["metadata"] = metadata
         if send_via is not None:
             body["send_via"] = list(send_via)
+        if saved_payment_methods is not None:
+            body["saved_payment_methods"] = saved_payment_methods
+        if payment_method is not None:
+            body["payment_method"] = payment_method
+        if confirm is not None:
+            body["confirm"] = confirm
 
         opts = RequestOptions(idempotency_key=idempotency_key) if idempotency_key else None
         response = self._client.request("POST", "/payment-intents", body, opts)
@@ -97,7 +112,7 @@ class PaymentIntentsResource:
     ) -> Dict[str, Any]:
         """GET /payment-intents — returns ``{"data": [...], "pagination": {...}}``.
 
-        ``source``: "single" | "link" | "recurring". ``payment_link_id``: solo los cobros de ese link.
+        ``source``: "single" | "link" | "subscription". ``payment_link_id``: solo los cobros de ese link.
         """
         query: Dict[str, str] = {}
         if status is not None:
@@ -150,6 +165,26 @@ class PaymentIntentsResource:
             f"/payment-intents/{quote(payment_intent_id, safe='')}/cancel",
         )
         return _from_api(response["data"])
+
+    def enable_saved_payment_methods(self, payment_intent_id: str) -> PaymentIntent:
+        """POST /payment-intents/:id/saved-payment-methods/enable — por 30 minutos el checkout de
+        este cobro muestra el Yape guardado del cliente sin pedirle un código. Llámalo justo antes
+        de enviarle el enlace; volver a llamarlo renueva el plazo."""
+        response = self._client.request(
+            "POST",
+            f"/payment-intents/{quote(payment_intent_id, safe='')}/saved-payment-methods/enable",
+        )
+        return _from_api(response["data"])
+
+    def create_customer_session(self, payment_intent_id: str) -> Dict[str, Any]:
+        """POST /payment-intents/:id/customer-session — llave para el checkout que incrustas con
+        KUTI.js: muestra el Yape guardado del cliente que ya inició sesión en tu tienda. No va en
+        el enlace del cobro. Devuelve ``{"customer_session_secret": ..., "expires_at": ...}``."""
+        response = self._client.request(
+            "POST",
+            f"/payment-intents/{quote(payment_intent_id, safe='')}/customer-session",
+        )
+        return dict(response["data"])
 
     def send_whatsapp(
         self,
@@ -206,4 +241,6 @@ def _from_api(dto: Dict[str, Any]) -> PaymentIntent:
         customer=customer if isinstance(customer, dict) and customer else None,
         payment_link_id=dto.get("payment_link_id"),
         send_via=dto.get("send_via"),
+        saved_payment_methods=dto.get("saved_payment_methods"),
+        last_saved_method_payment=dto.get("last_saved_method_payment"),
     )

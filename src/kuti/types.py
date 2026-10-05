@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Union
 
-PaymentMethodType = Literal["INTEROPERABLE_QR", "BANK_TRANSFER"]
+# "YAPE" = Yape afiliado: el cliente aprueba una vez, queda guardado y se le debita.
+PaymentMethodType = Literal["INTEROPERABLE_QR", "BANK_TRANSFER", "YAPE"]
 
 CheckoutSessionStatus = Literal["OPEN", "COMPLETED", "EXPIRED", "CANCELLED"]
 
@@ -146,6 +147,49 @@ class PaymentIntent:
     payment_link_id: Optional[str] = None
     # Canales por los que se envió el cobro al crearlo ("EMAIL", "WHATSAPP").
     send_via: Optional[List[str]] = None
+    # Si el checkout puede mostrar el medio guardado del cliente sin pedirle un código:
+    # {"status": "enabled" | "disabled", "expires_at": ...}.
+    saved_payment_methods: Optional[Dict[str, Any]] = None
+    # Solo al crear con confirm=True — cómo salió el débito:
+    # {"status": "PROCESSING" | "SUCCEEDED" | "FAILED", "failure_code": ...}.
+    last_saved_method_payment: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class Subscription:
+    """Suscripción: KUTI cobra solo cada periodo sobre el Yape afiliado del cliente.
+
+    ``status``: INCOMPLETE (falta que el cliente afilie su Yape; en monto fijo, además pagar el
+    primer periodo) | ACTIVE | PAST_DUE (hay un periodo sin pagar) | PAUSED | CANCELLED | COMPLETED.
+    """
+
+    id: str
+    merchant_id: str
+    status: str
+    description: str
+    frequency: str
+    interval: int
+    start_date: str
+    created_at: str
+    billing_mode: str = "fixed"  # "variable" = tú envías el monto de cada periodo
+    amount: Optional[Money] = None  # None en monto variable
+    # Monto variable e INCOMPLETE: enlace para que el cliente afilie su Yape sin pagar.
+    setup_url: Optional[str] = None
+    customer: Optional[Dict[str, Any]] = None  # id, name, email, phone
+    items: List[Dict[str, Any]] = field(default_factory=list)  # description, unit_amount, quantity, amount
+    charge_time: Optional[str] = None  # "HH:mm", hora de Perú
+    next_charge_at: Optional[str] = None
+    end_date: Optional[str] = None
+    payment_method: Optional[Dict[str, Any]] = None  # id, type, phone_last4, status
+    retry_policy: Optional[Dict[str, Any]] = None  # interval_days, on_exhausted
+    # Periodo más reciente: id, billing_period, due_date, amount (Money | None), status
+    # (AWAITING_AMOUNT | OPEN | PROCESSING | PAID | UNCOLLECTIBLE | SKIPPED), attempts,
+    # last_failure_code, next_attempt_at, payment_intent_id, checkout_url, paid_at.
+    latest_cycle: Optional[Dict[str, Any]] = None
+    external_reference: Optional[str] = None
+    metadata: Optional[Dict[str, str]] = None
+    livemode: Optional[bool] = None
+    cancelled_at: Optional[str] = None
 
 
 @dataclass
@@ -340,4 +384,39 @@ def payment_exception_from_api(dto: Dict[str, Any]) -> PaymentException:
         balance_transaction_id=dto.get("balance_transaction_id"),
         resolution_note=dto.get("resolution_note"),
         resolved_at=dto.get("resolved_at"),
+    )
+
+
+def subscription_cycle_from_api(dto: Dict[str, Any]) -> Dict[str, Any]:
+    """Periodo de una suscripción; ``amount`` pasa a ``Money`` (o None si aún se espera el monto)."""
+    cycle = dict(dto)
+    cycle["amount"] = money_from_api(dto["amount"]) if dto.get("amount") else None
+    return cycle
+
+
+def subscription_from_api(dto: Dict[str, Any]) -> "Subscription":
+    return Subscription(
+        id=dto["id"],
+        merchant_id=dto["merchant_id"],
+        status=dto["status"],
+        description=dto["description"],
+        frequency=dto["frequency"],
+        interval=int(dto.get("interval") or 1),
+        start_date=dto["start_date"],
+        created_at=dto["created_at"],
+        billing_mode=dto.get("billing_mode") or "fixed",
+        amount=money_from_api(dto["amount"]) if dto.get("amount") else None,
+        setup_url=dto.get("setup_url"),
+        customer=dto.get("customer"),
+        items=list(dto.get("items") or []),
+        charge_time=dto.get("charge_time"),
+        next_charge_at=dto.get("next_charge_at"),
+        end_date=dto.get("end_date"),
+        payment_method=dto.get("payment_method"),
+        retry_policy=dto.get("retry_policy"),
+        latest_cycle=subscription_cycle_from_api(dto["latest_cycle"]) if dto.get("latest_cycle") else None,
+        external_reference=dto.get("external_reference"),
+        metadata=dto.get("metadata"),
+        livemode=dto.get("livemode"),
+        cancelled_at=dto.get("cancelled_at"),
     )
