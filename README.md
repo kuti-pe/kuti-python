@@ -162,8 +162,8 @@ kuti.payment_intents.create(
 
 ## Yape afiliado y suscripciones
 
-> Por ahora solo en **modo prueba** (claves `kuti_test_…`). En producción estará disponible
-> cuando Yape afiliado quede habilitado para tu negocio.
+> Disponible en producción próximamente. Ya puedes integrarlo y probarlo con una clave de prueba
+> (`kuti_test_…`).
 
 Con `"YAPE"` en `payment_method_types`, tu cliente aprueba una sola vez desde su app y su Yape
 queda afiliado a tu negocio. Desde ahí puedes cobrarle sin que vuelva a aprobar.
@@ -209,6 +209,7 @@ sub = kuti.subscriptions.create(
     charge_time="09:00",  # hora de Perú; nunca entre 01:00 y 03:00
     retry_policy={"interval_days": [1, 3, 5], "on_exhausted": "past_due"},  # opcional
     metadata={"workspace_id": "ws_4821"},
+    idempotency_key=f"sub-plan-{customer_id}",
 )
 
 if sub.status == "INCOMPLETE":
@@ -255,7 +256,7 @@ intento y cuándo se reintenta. KUTI no corta tu servicio: tú decides qué hace
 - `kuti.payment_intents.send_whatsapp(id, ...)`
 - `kuti.payment_intents.enable_saved_payment_methods(id)` / `create_customer_session(id)` — mostrar el Yape guardado en el checkout
 - `kuti.customers.list_payment_methods(id)` / `detach_payment_method(id, payment_method_id)` — Yape afiliado del cliente
-- `kuti.subscriptions.create(...)` / `retrieve(id)` / `list(...)` / `update(id, ...)` / `pause(id)` / `resume(id)` / `cancel(id)` / `retry(id)` / `charge(id, amount=..., description=None, period=None)` / `list_cycles(id)`
+- `kuti.subscriptions.create(...)` / `retrieve(id)` / `list(...)` / `update(id, ...)` / `pause(id, idempotency_key=None)` / `resume(id, idempotency_key=None)` / `cancel(id, idempotency_key=None)` / `retry(id, idempotency_key=None)` / `charge(id, amount=..., description=None, period=None, idempotency_key=None)` / `list_cycles(id)`
 - `kuti.payment_links.create(...)` / `retrieve(id)` / `update(id, ...)` / `list(...)` / `activate(id)` / `deactivate(id)` / `check_slug(slug, except_id=None)`
 - `kuti.payment_exceptions.list(...)` / `resolve(id, status=..., note=None)` — pagos para revisar
 - `kuti.webhook_deliveries.retrieve(id)` / `retry(id)` — cada intento con el status HTTP y lo que respondió tu servidor

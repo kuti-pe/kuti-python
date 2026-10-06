@@ -555,6 +555,11 @@ def test_subscriptions_create_charge_and_map_the_latest_cycle() -> None:
             "billing_mode": "variable", "frequency": "MONTHLY", "interval": 1,
             "start_date": "2026-09-05", "status": "ACTIVE", "created_at": "2026-09-05T14:00:00Z",
         }}),
+        FakeHTTPResponse({"data": {
+            "id": "sub_2", "merchant_id": "mer_1", "description": "LIA por consumo",
+            "billing_mode": "variable", "frequency": "MONTHLY", "interval": 1,
+            "start_date": "2026-09-05", "status": "ACTIVE", "created_at": "2026-09-05T14:00:00Z",
+        }}),
     ]
 
     def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
@@ -573,6 +578,7 @@ def test_subscriptions_create_charge_and_map_the_latest_cycle() -> None:
             idempotency_key="alta-1",
         )
         charged = client.subscriptions.charge("sub_2", amount="184.00", period="2026-10")
+        client.subscriptions.retry("sub_2", idempotency_key="retry-1")
 
     body = json.loads(calls[0].data.decode("utf-8"))
     assert calls[0].full_url == "https://example.test/v1/subscriptions"
@@ -589,6 +595,8 @@ def test_subscriptions_create_charge_and_map_the_latest_cycle() -> None:
     assert json.loads(calls[1].data.decode("utf-8")) == {"amount": "184.00", "period": "2026-10"}
     assert charged.billing_mode == "variable"
     assert charged.amount is None
+    assert calls[2].full_url == "https://example.test/v1/subscriptions/sub_2/retry"
+    assert calls[2].get_header("Idempotency-key") == "retry-1"
 
 
 def test_saved_payment_methods_and_direct_charge() -> None:

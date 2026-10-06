@@ -138,21 +138,21 @@ class SubscriptionsResource:
         response = self._client.request("PATCH", _path(subscription_id), body)
         return subscription_from_api(response["data"])
 
-    def pause(self, subscription_id: str) -> Subscription:
+    def pause(self, subscription_id: str, *, idempotency_key: Optional[str] = None) -> Subscription:
         """POST /subscriptions/{id}/pause — deja de cobrar y de reintentar."""
-        return self._action(subscription_id, "pause")
+        return self._action(subscription_id, "pause", idempotency_key)
 
-    def resume(self, subscription_id: str) -> Subscription:
+    def resume(self, subscription_id: str, *, idempotency_key: Optional[str] = None) -> Subscription:
         """POST /subscriptions/{id}/resume"""
-        return self._action(subscription_id, "resume")
+        return self._action(subscription_id, "resume", idempotency_key)
 
-    def cancel(self, subscription_id: str) -> Subscription:
+    def cancel(self, subscription_id: str, *, idempotency_key: Optional[str] = None) -> Subscription:
         """POST /subscriptions/{id}/cancel — final; anula el cobro del periodo que siga sin pagar."""
-        return self._action(subscription_id, "cancel")
+        return self._action(subscription_id, "cancel", idempotency_key)
 
-    def retry(self, subscription_id: str) -> Subscription:
+    def retry(self, subscription_id: str, *, idempotency_key: Optional[str] = None) -> Subscription:
         """POST /subscriptions/{id}/retry — debita ahora el periodo más antiguo sin pagar."""
-        return self._action(subscription_id, "retry")
+        return self._action(subscription_id, "retry", idempotency_key)
 
     def charge(
         self,
@@ -180,8 +180,9 @@ class SubscriptionsResource:
         response = self._client.request("GET", f"{_path(subscription_id)}/cycles")
         return [subscription_cycle_from_api(c) for c in response.get("data") or []]
 
-    def _action(self, subscription_id: str, action: str) -> Subscription:
-        response = self._client.request("POST", f"{_path(subscription_id)}/{action}")
+    def _action(self, subscription_id: str, action: str, idempotency_key: Optional[str] = None) -> Subscription:
+        opts = RequestOptions(idempotency_key=idempotency_key) if idempotency_key else None
+        response = self._client.request("POST", f"{_path(subscription_id)}/{action}", None, opts)
         return subscription_from_api(response["data"])
 
 
