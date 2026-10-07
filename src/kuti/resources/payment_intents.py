@@ -192,8 +192,12 @@ class PaymentIntentsResource:
         *,
         phone: Optional[str] = None,
         customer_name: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> None:
-        """POST /payment-intents/:id/send-whatsapp — 204 on success."""
+        """POST /payment-intents/:id/send-whatsapp — 204 on success.
+
+        Con ``idempotency_key``, reintentar no le manda el mensaje dos veces al cliente.
+        """
         body: Dict[str, Any] = {}
         if phone is not None:
             body["phone"] = phone
@@ -203,6 +207,7 @@ class PaymentIntentsResource:
             "POST",
             f"/payment-intents/{quote(payment_intent_id, safe='')}/send-whatsapp",
             body,
+            RequestOptions(idempotency_key=idempotency_key) if idempotency_key else None,
         )
 
 

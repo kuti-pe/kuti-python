@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from urllib.parse import quote, urlencode
 
-from ..types import PaymentLink
+from ..types import PaymentLink, RequestOptions
 
 if TYPE_CHECKING:
     from ..client import KutiClient
@@ -38,14 +38,16 @@ class PaymentLinksResource:
     def __init__(self, client: KutiClient) -> None:
         self._client = client
 
-    def create(self, **params: Any) -> PaymentLink:
+    def create(self, *, idempotency_key: Optional[str] = None, **params: Any) -> PaymentLink:
         """POST /payment-links.
 
         Obligatorios: ``title``, ``pricing`` ("FIXED" | "CUSTOMER_CHOOSES"),
         ``payment_method_types``; ``amount`` (FIXED) o ``min_amount`` (CUSTOMER_CHOOSES).
         ``customer_field_ids`` sin enviar = los "pedir también al pagar"; [] = ninguno.
+        Con ``idempotency_key``, reintentar devuelve el link ya creado.
         """
-        response = self._client.request("POST", "/payment-links", _to_body(params))
+        opts = RequestOptions(idempotency_key=idempotency_key) if idempotency_key else None
+        response = self._client.request("POST", "/payment-links", _to_body(params), opts)
         return _from_api(response["data"])
 
     def retrieve(self, payment_link_id: str) -> PaymentLink:

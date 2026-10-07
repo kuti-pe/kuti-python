@@ -6,6 +6,7 @@ from urllib.parse import quote, urlencode
 from ..types import (
     Customer,
     CustomerInput,
+    RequestOptions,
     customer_from_api,
     customer_input_from,
     customer_input_to_api,
@@ -26,13 +27,18 @@ class CustomersResource:
         customer: Union[CustomerInput, Dict[str, Any]],
         *,
         metadata: Optional[Dict[str, str]] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Customer:
-        """POST /customers — 409 CUSTOMER_ALREADY_EXISTS si el external_id o documento ya existe."""
+        """POST /customers — 409 CUSTOMER_ALREADY_EXISTS si el external_id o documento ya existe.
+
+        Con ``idempotency_key``, reintentar no crea otro cliente.
+        """
         body = customer_input_to_api(customer_input_from(customer)) or {}
         body.pop("id", None)
         if metadata is not None:
             body["metadata"] = metadata
-        response = self._client.request("POST", "/customers", body)
+        opts = RequestOptions(idempotency_key=idempotency_key) if idempotency_key else None
+        response = self._client.request("POST", "/customers", body, opts)
         return customer_from_api(response["data"])
 
     def retrieve(self, customer_id: str) -> Customer:

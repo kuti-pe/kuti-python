@@ -638,3 +638,57 @@ def test_saved_payment_methods_and_direct_charge() -> None:
     assert calls[2].full_url == "https://example.test/v1/payment-intents/pi_1/customer-session"
     assert session["customer_session_secret"] == "cuss_secret_x"
 
+
+def test_sends_idempotency_key_on_customers_payment_links_whatsapp_and_delivery_retry() -> None:
+    calls: list = []
+    responses = [
+        FakeHTTPResponse({"data": {"id": "cus_1", "merchant_id": "mer_1", "type": "INDIVIDUAL",
+                                   "first_name": "Ana", "created_at": "2026-01-01T00:00:00Z"}}),
+        FakeHTTPResponse({"data": {
+            "id": "plink_1", "merchant_id": "mer_1", "livemode": False, "slug": "taller-excel",
+            "url": "https://pay.kuti.pe/l/taller-excel", "title": "Taller de Excel", "template": "COURSE",
+            "pricing": "FIXED", "currency": "PEN", "amount": "120.00",
+            "payment_method_types": ["INTEROPERABLE_QR"], "status": "ACTIVE",
+            "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z",
+        }}),
+        FakeHTTPResponse({}),
+        FakeHTTPResponse({"data": {"id": "whd_1", "event_id": "evt_1", "status": "PENDING"}}),
+    ]
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        calls.append(req)
+        return responses.pop(0)
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        client.customers.create({"type": "INDIVIDUAL", "first_name": "Ana"}, idempotency_key="alta-ana")
+        client.payment_links.create(
+            title="Taller de Excel", pricing="FIXED", amount="120.00",
+            payment_method_types=["INTEROPERABLE_QR"], idempotency_key="link-taller",
+        )
+        client.payment_intents.send_whatsapp("pi_1", phone="+51987654321", idempotency_key="wa-pi_1")
+        client.webhook_deliveries.retry("whd_1", idempotency_key="retry-whd_1")
+
+    assert [(c.full_url, c.get_header("Idempotency-key")) for c in calls] == [
+        ("https://example.test/v1/customers", "alta-ana"),
+        ("https://example.test/v1/payment-links", "link-taller"),
+        ("https://example.test/v1/payment-intents/pi_1/send-whatsapp", "wa-pi_1"),
+        ("https://example.test/v1/webhook-deliveries/whd_1/retry", "retry-whd_1"),
+    ]
+    # La llave no viaja en el body del link.
+    assert "idempotency_key" not in json.loads(calls[1].data.decode("utf-8"))
+
+
+def test_sends_no_idempotency_key_when_the_caller_does_not_give_one() -> None:
+    calls: list = []
+
+    def fake_urlopen(req: Any, timeout: Optional[float] = None) -> FakeHTTPResponse:
+        calls.append(req)
+        return FakeHTTPResponse({"data": {"id": "cus_1", "merchant_id": "mer_1", "type": "INDIVIDUAL",
+                                          "first_name": "Ana", "created_at": "2026-01-01T00:00:00Z"}})
+
+    with patch("kuti.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        client = KutiClient(SECRET_KEY, base_url="https://example.test/v1")
+        client.customers.create({"type": "INDIVIDUAL", "first_name": "Ana"})
+
+    assert calls[0].get_header("Idempotency-key") is None

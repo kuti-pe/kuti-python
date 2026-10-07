@@ -124,6 +124,17 @@ except KutiApiError as err:
 
 Los `GET` y los `POST` con `idempotency_key` se reintentan automáticamente en errores de red o `429`/`503`. Un `POST` sin `idempotency_key` nunca se reintenta, para no duplicar un cobro.
 
+Aceptan `idempotency_key`: `payment_intents.create`, `payment_intents.send_whatsapp`, `checkout_sessions.create`, `customers.create`, `payment_links.create`, `webhook_deliveries.retry` y `subscriptions.create | charge | retry | pause | resume | cancel`. Con la misma llave y el mismo contenido recibes la respuesta original y nada se hace dos veces; la misma llave con otro contenido responde `409 IDEMPOTENCY_CONFLICT`.
+
+```python
+# Un reintento no crea otro cliente ni le manda el mensaje dos veces.
+customer = kuti.customers.create(
+    {"type": "INDIVIDUAL", "first_name": "Ana", "last_name": "Rojas"},
+    idempotency_key=f"alta-{user_id}",
+)
+kuti.payment_intents.send_whatsapp(pi.id, idempotency_key=f"wa-{pi.id}")
+```
+
 
 ## Links de pago
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from urllib.parse import quote
+
+from ..types import RequestOptions
 
 if TYPE_CHECKING:
     from ..client import KutiClient
@@ -18,6 +20,9 @@ class WebhookDeliveriesResource:
         """GET /webhook-deliveries/:id"""
         return self._client.request("GET", f"/webhook-deliveries/{quote(delivery_id, safe='')}")["data"]
 
-    def retry(self, delivery_id: str) -> Dict[str, Any]:
+    def retry(self, delivery_id: str, *, idempotency_key: Optional[str] = None) -> Dict[str, Any]:
         """POST /webhook-deliveries/:id/retry — la reencola para envío inmediato."""
-        return self._client.request("POST", f"/webhook-deliveries/{quote(delivery_id, safe='')}/retry")["data"]
+        opts = RequestOptions(idempotency_key=idempotency_key) if idempotency_key else None
+        return self._client.request(
+            "POST", f"/webhook-deliveries/{quote(delivery_id, safe='')}/retry", None, opts
+        )["data"]
